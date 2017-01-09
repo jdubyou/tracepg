@@ -6,12 +6,9 @@
 
 dtrace:::BEGIN
 {
-	/*printf("%-8s %5s %5s %5s %s\n", "TIMEms", "QRYms", "EXCms", "CPUms",
-	    "QUERY");*/
 	printf("Tracing sql queires.. Hit Ctrl-C to end.\n");
 	min_ns = $1 * 1000000;
 	timezero = timestamp;
-	printf("%s", $$2);
 	
 }
 
@@ -28,25 +25,27 @@ postgresql*:::query-execute-start
 }
 
 postgresql*:::query-execute-done
-/self->estart/
+/self->start/
 {
 	self->exec = timestamp - self->estart;
 	self->estart = 0;
 }
 
 postgresql*:::query-done
-/self->start && (timestamp - self->start) >= min_ns && strstr(self->query, $$2) != NULL /
+/self->start && (timestamp - self->start) >= min_ns /
+/*&& strstr(self->query, $$2) != NULL */
 {
-	/*this->now = (timestamp - timezero) / 1000000;
-	this->time = (timestamp - self->start) / 1000000;
-	this->vtime = (vtimestamp - self->vstart) / 1000000;
-	this->etime = self->exec / 1000000;*/
 	@query_time[self->query] = quantize(timestamp - self->start);
-	/*printf("%-8d %5d %5d %5d %s\n", this->now, this->time, this->etime,
-	    this->vtime, copyinstr(arg0));*/
 }
 
 postgresql*:::query-done
 {
-	self->start = 0; self->vstart = 0; self->exec = 0;
+	self->start = 0; 
+    self->vstart = 0; 
+    self->exec = 0;
+}
+dtrace:::END
+{
+    printf("PostGresSQL lantency (ns \n");
+    printa(@query_time);
 }
